@@ -2,46 +2,56 @@ import { Router, Request, Response } from 'express';
 
 import { User } from '../models/User';
 
-import * as bcrypt from 'bcrypt';
+//import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
+
 import * as jwt from 'jsonwebtoken';
 import { NextFunction } from 'connect';
 
 import * as EmailValidator from 'email-validator';
+import { config } from '../../../../config/config';
 
 const router: Router = Router();
 
-/* async function generatePassword(plainTextPassword: string): Promise<string> {
+async function generatePassword(plainTextPassword: string): Promise<string> {
     //@TODO Use Bcrypt to Generated Salted Hashed Passwords
+    const saltRounds = 10;
+    const salt = await bcrypt.genSalt(saltRounds);
+    const hash = await bcrypt.hash(plainTextPassword, salt);
+    return hash;
 }
 
 async function comparePasswords(plainTextPassword: string, hash: string): Promise<boolean> {
     //@TODO Use Bcrypt to Compare your password to your Salted Hashed Password
+    return await bcrypt.compare(plainTextPassword, hash);
 }
 
 function generateJWT(user: User): string {
     //@TODO Use jwt to create a new JWT Payload containing
+    return jwt.sign(user, config.jwt.secret);
 }
- */
+ 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
-    return next();
-    // if (!req.headers || !req.headers.authorization){
-    //     return res.status(401).send({ message: 'No authorization headers.' });
-    // }
+    //return next();
+    if (!req.headers || !req.headers.authorization){ 
+        // checking if there is a request header present and that request header includes an authorization header
+        return res.status(401).send({ message: 'No authorization headers.' });
+    }
     
-
-    // const token_bearer = req.headers.authorization.split(' ');
-    // if(token_bearer.length != 2){
-    //     return res.status(401).send({ message: 'Malformed token.' });
-    // }
+    //token eg.: Bearer kjjhsfdjkghsdjkl;jhkjgdfshdfkjsdhk;klsjsjgflsg
+    const token_bearer = req.headers.authorization.split(' ');
+    if(token_bearer.length != 2){
+        return res.status(401).send({ message: 'Malformed token.' });
+    }
     
-    // const token = token_bearer[1];
+    const token = token_bearer[1]; // token is the second part of the token_bearer array
 
-    // return jwt.verify(token, "hello", (err, decoded) => {
-    //   if (err) {
-    //     return res.status(500).send({ auth: false, message: 'Failed to authenticate.' });
-    //   }
-    //   return next();
-    // });
+    return jwt.verify(token, config.jwt.secret, (err, decoded) => {
+      if (err) {
+        return res.status(500).send({ auth: false, message: 'Failed to authenticate.' });
+      }
+      return next();
+    });
 }
 
 router.get('/verification', 
@@ -69,22 +79,22 @@ router.post('/login', async (req: Request, res: Response) => {
         return res.status(401).send({ auth: false, message: 'Unauthorized' });
     }
 
- /*    // check that the password matches
+    // check that the password matches
     const authValid = await comparePasswords(password, user.password_hash)
 
     if(!authValid) {
         return res.status(401).send({ auth: false, message: 'Unauthorized' });
     }
 
-    // Generate JWT
-    const jwt = generateJWT(user);
+    // Generate JWT (JSon Web Token) - Reference: https://jwt.io/
+    const jwt = generateJWT(user); 
 
-    res.status(200).send({ auth: true, token: jwt, user: user.short()}); */
+    res.status(200).send({ auth: true, token: jwt, user: user.short()});
 });
 
-//register a new user
-router.post('/', async (req: Request, res: Response) => {
-    const email = req.body.email;
+//register a new user at /api/v0/users/auth
+router.post('/', async (req: Request, res: Response) => { // post to our user endpoint
+    const email = req.body.email; // unpacking few things of request body
     const plainTextPassword = req.body.password;
     // check email is valid
     if (!email || !EmailValidator.validate(email)) {
